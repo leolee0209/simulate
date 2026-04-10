@@ -57,7 +57,8 @@ type GenerationStatsPoint struct {
 type World struct {
 	width                             float64
 	height                            float64
-	creatures                         []Creature
+	preys                             []*Prey
+	predators                         []*Predator
 	tick                              uint64
 	initialPreyCount                  int
 	initialPredatorCount              int
@@ -133,9 +134,14 @@ func (w *World) Step() {
 		w.initialBaselineSet = true
 	}
 
-	for i := range w.creatures {
-		if w.creatures[i].alive() {
-			w.creatures[i].act(w)
+	for i := range w.predators {
+		if w.predators[i].alive() {
+			w.predators[i].act(w)
+		}
+	}
+	for i := range w.preys {
+		if w.preys[i].alive() {
+			w.preys[i].act(w)
 		}
 	}
 	w.compactCreatures()
@@ -147,9 +153,12 @@ func (w *World) Step() {
 }
 
 func (w *World) Snapshot() []CreatureSnapshot {
-	res := make([]CreatureSnapshot, 0, len(w.creatures))
-	for i := range w.creatures {
-		res = append(res, w.creatures[i].snapshot())
+	res := make([]CreatureSnapshot, 0, len(w.preys)+len(w.predators))
+	for i := range w.predators {
+		res = append(res, w.predators[i].snapshot())
+	}
+	for i := range w.preys {
+		res = append(res, w.preys[i].snapshot())
 	}
 	return res
 }
@@ -176,7 +185,8 @@ func (w *World) CurrentGenerationStats() (float64, int) {
 }
 
 func (w *World) InitGrid() {
-	w.creatures = nil
+	w.preys = nil
+	w.predators = nil
 	w.tick = 0
 	w.initialPreyCount = 0
 	w.initialPredatorCount = 0
@@ -248,26 +258,25 @@ func (w *World) wrappedDistance(from, to util.Position) float64 {
 }
 
 func (w *World) nearestPredator(from util.Position) (util.Position, bool, float64) {
-	bestDistance := math.MaxFloat64
+	bestDistanceSq := math.MaxFloat64
 	nearest := util.Position{X: -1, Y: -1}
 
-	for i := range w.creatures {
-		if !w.creatures[i].alive() {
-			continue
-		}
-		s := w.creatures[i].snapshot()
-		if s.Kind != PredatorKind {
+	for i := range w.predators {
+		if !w.predators[i].alive() {
 			continue
 		}
 
-		distance := w.wrappedDistance(from, s.Pos)
-		if distance < bestDistance {
-			bestDistance = distance
-			nearest = s.Pos
+		distanceSq := w.wrappedVector(from, w.predators[i].Pos).LengthSquared()
+		if distanceSq < bestDistanceSq {
+			bestDistanceSq = distanceSq
+			nearest = w.predators[i].Pos
 		}
 	}
 
-	return nearest, !nearest.Equal(util.Position{X: -1, Y: -1}), bestDistance
+	if nearest.X == -1 && nearest.Y == -1 {
+		return nearest, false, math.MaxFloat64
+	}
+	return nearest, true, math.Sqrt(bestDistanceSq)
 }
 
 func (w *World) nearestPrey(from util.Position) (util.Position, bool, float64) {
@@ -291,24 +300,21 @@ func (w *World) nearestPreyExcept(from util.Position, exclude util.Position) (ut
 }
 
 func (w *World) nearestPreyEntityExcept(from util.Position, exclude *Prey) (*Prey, float64, bool) {
-	bestDistance := math.MaxFloat64
+	bestDistanceSq := math.MaxFloat64
 	var nearest *Prey
 
-	for i := range w.creatures {
-		if !w.creatures[i].alive() {
+	for i := range w.preys {
+		if !w.preys[i].alive() {
 			continue
 		}
-		prey, ok := w.creatures[i].(*Prey)
-		if !ok {
-			continue
-		}
+		prey := w.preys[i]
 		if exclude != nil && prey == exclude {
 			continue
 		}
 
-		distance := w.wrappedDistance(from, prey.Pos)
-		if distance < bestDistance {
-			bestDistance = distance
+		distanceSq := w.wrappedVector(from, prey.Pos).LengthSquared()
+		if distanceSq < bestDistanceSq {
+			bestDistanceSq = distanceSq
 			nearest = prey
 		}
 	}
@@ -317,7 +323,7 @@ func (w *World) nearestPreyEntityExcept(from util.Position, exclude *Prey) (*Pre
 		return nil, math.MaxFloat64, false
 	}
 
-	return nearest, bestDistance, true
+	return nearest, math.Sqrt(bestDistanceSq), true
 }
 
 func (w *World) Size() (float64, float64) {
@@ -326,11 +332,8 @@ func (w *World) Size() (float64, float64) {
 
 func (w *World) preyCount() int {
 	count := 0
-	for i := range w.creatures {
-		if !w.creatures[i].alive() {
-			continue
-		}
-		if w.creatures[i].snapshot().Kind == AnimalKind {
+	for i := range w.preys {
+		if w.preys[i].alive() {
 			count++
 		}
 	}
@@ -346,21 +349,18 @@ func (w *World) shouldRestartGeneration() bool {
 }
 
 func (w *World) eatPreyAt(pos util.Position, captureRadius float64) bool {
-	for i := range w.creatures {
-		if !w.creatures[i].alive() {
-			continue
-		}
-		prey, ok := w.creatures[i].(*Prey)
-		if !ok {
+	captureRadiusSq := captureRadius * captureRadius
+	for i := range w.preys {
+		if !w.preys[i].alive() {
 			continue
 		}
 
-		distance := w.wrappedDistance(pos, prey.Pos)
-		if distance > captureRadius {
+		distanceSq := w.wrappedVector(pos, w.preys[i].Pos).LengthSquared()
+		if distanceSq > captureRadiusSq {
 			continue
 		}
 
-		prey.dead = true
+		w.preys[i].dead = true
 		return true
 	}
 
@@ -368,13 +368,21 @@ func (w *World) eatPreyAt(pos util.Position, captureRadius float64) bool {
 }
 
 func (w *World) compactCreatures() {
-	kept := w.creatures[:0]
-	for i := range w.creatures {
-		if w.creatures[i].alive() {
-			kept = append(kept, w.creatures[i])
+	keptPreys := w.preys[:0]
+	for i := range w.preys {
+		if w.preys[i].alive() {
+			keptPreys = append(keptPreys, w.preys[i])
 		}
 	}
-	w.creatures = kept
+	w.preys = keptPreys
+
+	keptPredators := w.predators[:0]
+	for i := range w.predators {
+		if w.predators[i].alive() {
+			keptPredators = append(keptPredators, w.predators[i])
+		}
+	}
+	w.predators = keptPredators
 }
 
 func (w *World) restartGeneration() {
@@ -387,7 +395,8 @@ func (w *World) restartGeneration() {
 		AvgSelfishHerdChance: w.lastCompletedAvgSelfishHerdChance,
 		SurvivorCount:        w.lastCompletedSurvivorCount,
 	})
-	w.creatures = nil
+	w.preys = nil
+	w.predators = nil
 	w.tick = 0
 	w.generation++
 
@@ -410,15 +419,11 @@ func (w *World) restartGeneration() {
 
 func (w *World) survivingPrey() []Prey {
 	res := make([]Prey, 0)
-	for i := range w.creatures {
-		if !w.creatures[i].alive() {
+	for i := range w.preys {
+		if !w.preys[i].alive() {
 			continue
 		}
-		prey, ok := w.creatures[i].(*Prey)
-		if !ok {
-			continue
-		}
-		res = append(res, *prey)
+		res = append(res, *w.preys[i])
 	}
 	return res
 }
@@ -485,7 +490,7 @@ func (w *World) placePrey(a Prey) {
 	if a.heading.Length() == 0 {
 		a.heading = randomUnitVector()
 	}
-	w.creatures = append(w.creatures, &a)
+	w.preys = append(w.preys, &a)
 	w.move(&a.Pos, a.Char, util.Vector{})
 }
 
@@ -494,7 +499,7 @@ func (w *World) placePredator(p Predator) {
 	p.baseColor = ColorRGB{R: 220, G: 50, B: 50}
 	p.restTicksLeft = 0
 	p.dead = false
-	w.creatures = append(w.creatures, &p)
+	w.predators = append(w.predators, &p)
 	w.move(&p.Pos, 'P', util.Vector{})
 }
 

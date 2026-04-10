@@ -26,6 +26,9 @@ func (p Vector) Scale(c float64) Vector {
 func (v Vector) Length() float64 {
 	return math.Sqrt(v.X*v.X + v.Y*v.Y)
 }
+func (v Vector) LengthSquared() float64 {
+	return v.X*v.X + v.Y*v.Y
+}
 func (v Vector) Equal(r Vector) bool {
 	return v.X == r.X && v.Y == r.Y
 }
