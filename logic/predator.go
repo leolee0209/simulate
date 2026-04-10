@@ -5,36 +5,51 @@ import (
 )
 
 type Predator struct {
-	Pos  u.Position
-	grid *[COLUNM][ROW]byte
+	Pos           u.Position
+	vision        Vision
+	mode          BehaviorMode
+	baseColor     ColorRGB
+	restTicksLeft int
+	dead          bool
 }
 
-func (p *Predator) act() {
-	var dpos u.Vector
+const predatorSpeed = preySpeed * 3
 
-	//find nearest predator
-	distance := float64(COLUNM*COLUNM + ROW*ROW)
-	farthestP := u.Position{X: -1, Y: -1}
-	for i := range COLUNM {
-		for j := range ROW {
-			if p.grid[i][j] != '.' && p.grid[i][j] != 'P' {
-				length := (p.Pos.Subtract(u.Position{X: i, Y: j})).Length()
-				if length < distance {
-					distance = length
-					farthestP = u.Position{X: i, Y: j}
-				}
-			}
-		}
+const (
+	predatorRestTicks   = 120
+	predatorCatchRadius = 0.5
+)
+
+func (p *Predator) act(w *World) {
+	if p.restTicksLeft > 0 {
+		p.mode = RestingMode
+		p.restTicksLeft--
+		return
 	}
 
-	//found
-	if (!farthestP.Equal(u.Position{X: -1, Y: -1})) {
-		dpos = moveInDirection(-float64(p.Pos.X-farthestP.X), -float64(p.Pos.Y-farthestP.Y))
-		println("found prey", farthestP.ToString())
-		println("persuit", dpos.ToString())
-	} else {
-		dpos = u.Vector{}
+	nearestPrey, found, _ := w.nearestPrey(p.Pos)
+	if !found  {
+		p.mode = RestingMode
+		p.restTicksLeft = predatorRestTicks
+		return
 	}
 
-	move(&p.Pos, 'P', dpos,p.grid)
+	p.mode = ChasingMode
+	toPrey := w.wrappedVector(p.Pos, nearestPrey)
+	dpos := moveWithSpeed(toPrey, predatorSpeed)
+	w.move(&p.Pos, 'P', dpos)
+
+	if w.eatPreyAt(p.Pos, predatorCatchRadius) {
+		p.mode = RestingMode
+		p.restTicksLeft = predatorRestTicks
+		return
+	}
+}
+
+func (p *Predator) snapshot() CreatureSnapshot {
+	return CreatureSnapshot{Pos: p.Pos, Char: 'P', Kind: PredatorKind, Mode: p.mode, BaseColor: p.baseColor}
+}
+
+func (p *Predator) alive() bool {
+	return !p.dead
 }

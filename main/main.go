@@ -1,26 +1,52 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"simulate/cmd"
 	"simulate/logic"
-	"simulate/util"
-	"time"
+	"simulate/render"
 )
 
 func main() {
-	logic.InitGrid()
+	gen := flag.Int("gen", 0, "run with graphics until generation N completes, then stop simulation updates and keep graph visible")
+	flag.Parse()
 
-	logic.AddPredator(logic.Predator{Pos: util.Position{X: 5, Y: 5}})
-	logic.AddAnimals(3)
+	logic.InitSimulation()
+	logic.SetCycle(0.2)
 
-	for i := 0; ; i++ {
-		fmt.Println()
-		fmt.Println()
+	logic.AddPredators(4)
+	logic.AddAnimals(80)
 
-		logic.PrintMap()
+	cols, rows := logic.Dimensions()
+	renderer, err := render.NewRenderer(cols, rows, render.Config{
+		Title:        "Simulate",
+		FPS:          60,
+		WindowHeight: 1200,
+		WindowWidth:  1200,
+	})
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer renderer.Close()
 
-		time.Sleep(1 * time.Second)
-		cmd.CallClear()
+	targetGen := *gen
+	graphShown := false
+
+	for renderer.IsRunning() {
+		if targetGen <= 0 {
+			logic.Step()
+		} else if !graphShown {
+			for logic.LastCompletedGeneration() < targetGen {
+				logic.Step()
+			}
+
+			if tabSetter, ok := renderer.(interface{ ShowGraphTab() }); ok {
+				tabSetter.ShowGraphTab()
+			}
+			graphShown = true
+		}
+
+		renderer.Draw(logic.Snapshot())
 	}
 }
