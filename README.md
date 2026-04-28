@@ -1,7 +1,5 @@
 # Simulate
 
-## Project Name, Motive, and Goal
-
 ### Project Name
 
 Simulate
