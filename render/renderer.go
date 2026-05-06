@@ -2,6 +2,12 @@ package render
 
 import "simulate/logic"
 
+type ExportMetric struct {
+	Generation           int
+	AvgSelfishHerdChance float64
+	SurvivorCount        int
+}
+
 type Config struct {
 	Title        string
 	FPS          int

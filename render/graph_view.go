@@ -66,10 +66,6 @@ func (r *raylibRenderer) drawGraph() {
 		y := plot.Y + plot.Height*(1-float32(clamp01(entry.avgSelfishHerdChance)))
 		rl.DrawCircleV(rl.Vector2{X: x, Y: y}, 3.3, lineColor)
 	}
-
-	latest := r.history[len(r.history)-1]
-	legend := fmt.Sprintf("Latest: gen=%d  avgSelfishHerdChance=%.4f  survivors=%d", latest.generation, latest.avgSelfishHerdChance, latest.survivorCount)
-	rl.DrawText(legend, int32(panel.X)+18, int32(panel.Y+panel.Height)-36, 16, rl.Color{R: 45, G: 55, B: 75, A: 255})
 }
 
 func clamp01(value float64) float64 {

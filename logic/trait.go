@@ -31,6 +31,14 @@ type SelfishHerdChance struct {
 	val float64
 }
 
+var initialSelfishHerdChanceAvg = 0.75
+var initialSelfishHerdChanceSpread = 0.5
+
+func SetInitialSelfishHerdChance(avg float64) {
+	initialSelfishHerdChanceAvg = avg
+	initialSelfishHerdChanceSpread = 0.5 // Keep a specific spread, or make it smaller
+}
+
 func (v *Vision) init() {
 	v.max = 20
 	v.min = 5
@@ -46,5 +54,6 @@ func (r *Roaming) init() {
 func (s *SelfishHerdChance) init() {
 	s.max = 1
 	s.min = 0
-	s.val = clamp01(rand.Float64()/2+0.5)
+	// Generate around the average with some spread
+	s.val = clamp01(initialSelfishHerdChanceAvg + (rand.Float64()-0.5)*initialSelfishHerdChanceSpread)
 }
