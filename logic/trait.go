@@ -53,7 +53,7 @@ func (r *Roaming) init() {
 
 func (s *SelfishHerdChance) init() {
 	s.max = 1
-	s.min = 0
-	// Generate around the average with some spread
-	s.val = clamp01(initialSelfishHerdChanceAvg + (rand.Float64()-0.5)*initialSelfishHerdChanceSpread)
+	s.min = -1
+	// Generate around the average with some spread, clamped to [-1, 1]
+	s.val = clampRange(initialSelfishHerdChanceAvg+(rand.Float64()-0.5)*initialSelfishHerdChanceSpread, -1, 1)
 }

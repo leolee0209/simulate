@@ -208,7 +208,7 @@ new Chart(ctx, {
     responsive: false,
     plugins: { legend: { display: true } },
     scales: {
-      y: { min: 0, max: 1 },
+      y: { min: -1, max: 1 },
       x: { title: { display: true, text: 'Generation' } }
     }
   }

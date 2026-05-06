@@ -8,6 +8,10 @@ Simulate
 
 I want this project to become an artificial ecosystem where simple local rules create complex emergent behavior, and where I can test biology ideas or try to replicate real life phenomenon through repeatable simulation experiments.
 
+## Competitor
+
+None(I don't think so)
+
 ## Expected Functionality
 
 ### Phase A: Closed Ecosystem Baseline
@@ -94,3 +98,12 @@ I want this project to become an artificial ecosystem where simple local rules c
 ## Notes
 
 - Detailed roadmap and acceptance criteria are documented in [GOAL.md](GOAL.md).
+
+## Prototype Report
+### Current Process
+Successfully created the conditions for the selfish herd behaviour to evolutionary take place.
+
+### Obstables
+None
+### Plan for future
+Will find more theories to try to recreate the conditions.

@@ -2,126 +2,186 @@
 
 ## Purpose
 
-This simulation is meant to show how prey grouping changes under predator pressure.
+This simulation models predator-prey dynamics to study how the **selfishHerdChance** trait evolves under predation pressure. The trait determines whether prey cooperate or compete when escaping threats, with values ranging from -1 (sacrifice nearby prey) to +1 (use nearby prey as cover).
 
-The current code keeps prey movement simple, but not fully random:
+The simulation is designed to be:
+- **Repeatable** — generation milestones and statistics are recorded
+- **Analyzable** — graphs show trait evolution and survivor counts per generation
+- **Configurable** — trait averages can be set and noise is consistently applied
 
-- prey keep a persistent heading
-- headings change with small random jitter
-- predators chase prey, then rest after a catch
-- generations restart when prey population falls too low
+[Wikipedia for Selfish herd theory](https://en.wikipedia.org/wiki/Selfish_herd_theory)
 
-The result is a repeatable setup for comparing prey movement over time and across generations.
+## Conclusion
+
+All tests converge to around 0.1. The average deviation is quite high sits at around 0.07.
+I say this simulation successfully recreates a simple situation for the selfish herd befaviour to come along evolutionary. The result's sitting around 0.1 says that a prey would steer a little bit towards their friend when being chased by predator. The fact that it doesn't steer away is very good for this conclusion and experiment.
+
+---
 
 ## World Rules
 
-- World size: `100 x 100`
-- Boundary behavior: toroidal wrapping on both axes
-- Initial population is set when generation `0` is created
-- The simulation tracks generation history, including a generation `0` baseline
+- **World size:** 100 × 100 units
+- **Boundary behavior:** Toroidal wrapping (both X and Y axes wrap around edges)
+- **Coordinate system:** Position updates use wrapped distance calculations to account for the torus topology
+- **Initial population:** Set when generation 0 is initialized; recorded as a baseline
+- **Generation tracking:** History records generation number, average selfishHerdChance, and survivor count
+
+---
 
 ## Prey Movement
 
 ### Heading and Motion
 
-Each prey stores a persistent movement heading.
+Each prey maintains a persistent movement heading that evolves through:
 
-- On spawn, the heading is random if it has not already been set
-- Every tick, the heading is jittered by a bounded random angle
-- Movement uses a fixed prey speed of `0.15`
-- Position updates wrap around the map edges
+- **Initialization:** On spawn, heading is set to a random unit vector if not already assigned
+- **Per-tick jitter:** Heading is modified by a random rotation within ±20 degrees
+- **Fixed speed:** Prey move at 0.15 units per tick
+- **Wrap-aware movement:** Positions wrap around map edges using the toroidal system
 
-This makes prey travel in smooth, continuous paths instead of re-randomizing every frame.
+This creates smooth, continuous paths that appear directed rather than purely random.
 
 ### Movement Modes
 
-Prey switch between two modes based on predator proximity:
+Prey dynamically switch between two modes:
 
-- `RoamingMode` when no predator is within vision range
-- `EvadingMode` when a predator is within vision range
+- **RoamingMode:** No predator detected within vision range → moves with original heading
+- **EvadingMode:** Predator detected within vision range → points away from the nearest predator
 
-The active code path currently does this:
+### SelfishHerdChance Behavior During Evasion
 
-- If a predator is found within vision, the prey points away from that predator
-- If the prey is in evading mode, it may blend that escape direction toward the nearest prey using `selfishHerdChance`
-- The `roaming` blending branch exists in the codebase, but it is currently commented out
+When a prey is in EvadingMode and a nearby prey is found, the following logic applies:
 
-So in the current build, the social-blending trait that affects movement is `selfishHerdChance` during evasion.
+1. **Probability check:** `rand() < |selfishHerdChance|`
+   - Allows the trait to influence behavior probabilistically
+   - Absolute value ensures negative values still trigger blending
+
+2. **Direction modifier:**
+   - **If selfishHerdChance ≥ 0:** Blend escape direction **toward** nearby prey (selfish/herding)
+   - **If selfishHerdChance < 0:** Blend escape direction **away from** nearby prey (sacrificial)
+
+3. **Blending:** The final escape direction averages the pure evasion vector with the prey-relative vector
 
 ### Prey Traits
 
-The prey currently initialize these traits:
+Each prey initializes three traits:
 
-- `vision`
-- `roaming`
-- `selfishHerdChance`
+| Trait | Range | Purpose |
+|-------|-------|---------|
+| `vision` | 5–20 | Distance at which predators trigger evasion mode |
+| `roaming` | 0–1 | Reserved for future roaming-mode blending (currently inactive) |
+| `selfishHerdChance` | -1–1 | Controls blending behavior during evasion |
 
-In the current movement logic:
+**Current movement logic uses:** Only `vision` and `selfishHerdChance`; `roaming` is initialized and inherited but not actively used.
 
-- `vision` decides whether the prey switches into evading mode
-- `selfishHerdChance` affects how strongly it may herd while escaping
-- `roaming` is initialized and preserved for evolution, but its movement branch is not active right now
+### Trait Initialization and Noise
+
+The simulation uses an **average + noise** model for reproducible but varied runs:
+
+```
+initialValue = SetAverage(avg) + noise
+noise = (random() - 0.5) × 0.5
+result = clamp(initialValue, [-1, 1])
+```
+
+For each new prey or generation:
+
+1. A **configurable average** is set via `SetInitialSelfishHerdChance(avg)` (default: 0.75)
+2. **Noise is applied:** `(random() - 0.5) × spread` where spread = 0.5
+3. **Result is clamped:** Clamped to [-1, 1] to stay within valid bounds
+
+**Effect:** Traits cluster around the set average but vary by ~±0.25 per initialization, allowing experimental control while maintaining population diversity.
+
+**Multirun feature:** Using `-multi N` generates N+1 runs with evenly distributed averages:
+- Step size = 2 / N
+- Example: `-multi 5` runs with averages: 1.0, 0.6, 0.2, -0.2, -0.6, -1.0
+- Each run applies the same ±0.25 noise, creating comparable distributions across the trait space
+
+### Trait Inheritance and Mutation
+
+When the next generation spawns from survivors:
+
+Each survivor produces exactly two children, plus additional offspring fill the population to target count:
+
+- **Roaming mutation:** `parent.roaming + (random() × 0.2 - 0.1)`, clamped to [0, 1]
+- **SelfishHerdChance mutation:** `parent.selfishHerdChance + (random() × 0.1 - 0.05)`, clamped to [-1, 1]
+
+This creates gradual evolution with small random steps, preserving beneficial traits across generations.
+
+---
 
 ## Predator Movement
 
-Predators follow a chase-and-rest cycle.
+Predators follow a **chase-and-rest cycle**:
 
-### Chase
+### Chase Phase
 
-- Predator speed is `3x` prey speed
-- A predator looks for the nearest prey
-- If prey are available, the predator moves toward the nearest one
-- Catch radius is `0.5`
+- **Speed:** 0.45 units per tick (3× prey speed)
+- **Target:** Nearest alive prey
+- **Catch radius:** 0.5 units
+- **Movement:** Direct vector toward nearest prey, wrapped for toroidal distance
 
-### Rest
+### Rest Phase
 
-- After a successful catch, the predator rests for `120` ticks
-- If no prey are found, the predator also enters rest mode for `120` ticks
-- While resting, the predator does not move
+- **Duration:** 120 ticks (fixed)
+- **Triggered by:**
+  - A successful catch
+  - No prey found in the world
+- **Behavior:** Stationary; no movement during rest
 
-This keeps predators from locking on permanently and makes the pressure on prey more dynamic.
+This cycle prevents predators from permanently locking onto prey and creates dynamic pressure fluctuations.
+
+---
 
 ## Generation Cycle
 
-The generation system is based on prey survival.
-
 ### When a Generation Ends
 
-A generation restarts when alive prey count drops to `50%` or less of the original initial prey count.
+A generation restarts when prey population falls to **50% or less** of the initial prey count:
+
+```
+nextGeneration_if (alivePreyCount ≤ 0.5 × initialPreyCount)
+```
 
 ### What Happens on Restart
 
-When a generation restarts:
-
-1. Surviving prey are collected
-2. The completed generation stats are recorded
-3. Generation counters are advanced
-4. All world creatures are cleared
-5. The next generation is spawned
+1. **Survivors collected:** All alive prey are recorded
+2. **Stats recorded:** Average selfishHerdChance and survivor count saved to history
+3. **World cleared:** All prey and predators removed
+4. **Next generation initialized:** New population spawned
 
 ### Next Generation Spawn
 
-The next generation is built from survivors:
+- **From survivors:** Each survivor produces exactly 2 children (mutations applied)
+- **Population fill:** If survivors exist but don't reach target count, additional offspring are randomly selected from survivors
+- **Predators reset:** Predator count restored to initial count, placed at random positions
+- **Fallback:** If no survivors remain, spawn a fresh generation with randomized traits
 
-- If survivors exist, each survivor produces two children
-- Children are then filled up to the original prey count if needed
-- Predator count is restored to the original starting predator count
-- If no survivors remain, the world falls back to a fresh random spawn
+---
 
 ## Graph and History
 
-The simulation keeps generation statistics so the graph can update in real time.
+The simulation records generation statistics for visualization:
 
-Tracked values:
+**Tracked per generation:**
+- Generation number
+- Average selfishHerdChance of survivors
+- Survivor count
 
-- generation number
-- average `selfishHerdChance` of surviving prey
-- survivor count
+**Baseline:** Generation 0 is captured before the first simulation step completes, serving as a reference point.
 
-Generation `0` is recorded as a baseline from the current live prey state before the first step completes.
+**Export:** When `--export` is used with `--multi`, the HTML output includes:
+- Line graph showing trait evolution across all runs
+- Data table with raw values
+- Simulation settings and parameters
+- Y-axis range: [-1, 1] to show full spectrum from sacrificial to selfish behavior
+
+---
 
 ## Practical Notes
 
-- The simulation is currently tuned around simple movement rules, not complex flocking physics
-- Prey movement is intentionally lightweight so generation changes are easy to observe
-- The `roaming` trait is still part of prey initialization and inheritance, but the active movement logic currently uses `selfishHerdChance` for escape-time social blending
+- **Lightweight physics:** Simulation prioritizes observable generational effects over complex flocking
+- **Toroidal world:** The wrapped distance system ensures no edge effects; prey can escape across map boundaries
+- **Configurable runs:** The `-multi N` flag generates N+1 evenly spaced trait averages from 1.0 to -1.0, enabling controlled comparison
+- **Noise model:** Set averages allow reproducible experimental conditions while population variance maintains natural selection pressure
+- **Visualization:** Exported HTML graphs show the full -1 to 1 range, making both selfish and sacrificial behavior patterns visible

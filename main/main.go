@@ -12,11 +12,11 @@ import (
 func main() {
 	gen := flag.Int("gen", 0, "run with graphics until generation N completes, then stop simulation updates and keep graph visible")
 	export := flag.String("export", "", "after simulation ends, export graph and settings to HTML file (e.g., './results.html')")
-	multi := flag.Bool("multi", false, "run multiple headlessly with starting averages: 0.0, 0.2, 0.4, 0.6, 0.8, 1.0 down to the target gen")
+	multi := flag.Int("multi", 0, "run multiple headlessly with N evenly distributed starting averages from 1 to -1 (e.g., 5 means 1.0, 0.6, 0.2, -0.2, -0.6, -1.0)")
 	flag.Parse()
 
-	if *multi && *export != "" && *gen > 0 {
-		runMultiHeadless(*gen, *export)
+	if *multi > 0 && *export != "" && *gen > 0 {
+		runMultiHeadless(*gen, *export, *multi)
 		return
 	}
 
@@ -114,9 +114,17 @@ func exportResults(filePath string) {
 	fmt.Printf("Results exported to: %s\n", filePath)
 }
 
-func runMultiHeadless(targetGen int, exportPath string) {
-	fmt.Printf("Starting multi-run simulation for %d target generations...\n", targetGen)
-	starts := []float64{0.0, 0.2, 0.4, 0.6, 0.8, 1.0}
+func runMultiHeadless(targetGen int, exportPath string, steps int) {
+	fmt.Printf("Starting multi-run simulation for %d target generations with %d steps...\n", targetGen, steps)
+	
+	// Generate evenly distributed values from 1.0 to -1.0
+	// step size = 2 / steps, so for steps=5: step=0.4, values are 1.0, 0.6, 0.2, -0.2, -0.6, -1.0
+	stepSize := 2.0 / float64(steps)
+	var starts []float64
+	for i := 0; i <= steps; i++ {
+		starts = append(starts, 1.0-float64(i)*stepSize)
+	}
+	
 	var runs []render.RunData
 
 	for _, startAvg := range starts {

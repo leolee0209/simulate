@@ -47,8 +47,12 @@ func (a *Prey) act(w *World) {
 		// 	finalDirection = averageDirections(finalDirection, peerHeading)
 		// }
 
-		if a.mode == EvadingMode && rand.Float64() < clamp01(a.trait.selfishHerdChance.val) {
+		if a.mode == EvadingMode && rand.Float64() < math.Abs(a.trait.selfishHerdChance.val) {
 			towardPrey := w.wrappedVector(a.Pos, nearestPrey.Pos)
+			// If selfishHerdChance is negative, negate the direction (move away)
+			if a.trait.selfishHerdChance.val < 0 {
+				towardPrey = towardPrey.Scale(-1)
+			}
 			finalDirection = averageDirections(finalDirection, towardPrey)
 		}
 	}
@@ -104,6 +108,16 @@ func clamp01(v float64) float64 {
 	}
 	if v > 1 {
 		return 1
+	}
+	return v
+}
+
+func clampRange(v, min, max float64) float64 {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
 	}
 	return v
 }
