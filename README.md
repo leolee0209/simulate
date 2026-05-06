@@ -1,24 +1,5 @@
 # Simulate
 
-## Run
-
-- Run with graphics (raylib): `go run ./main`
-- Build with graphics (raylib): `go build -o simulate ./main`
-- Run checks: `go test ./...`
-
-## Simulation API
-
-The simulation core is now driven through package-level APIs in `logic/`.
-
-- Initialize world: `logic.InitSimulation()`
-- Seed randomness: `logic.Seed(seed)`
-- Add entities: `logic.AddPredator(...)`, `logic.AddAnimals(...)`
-- Advance one tick: `logic.Step()`
-- Read state for rendering/consumers: `logic.Snapshot()`
-- Get grid size: `logic.Dimensions()`
-
-## Project Name, Motive, and Goal
-
 ### Project Name
 
 Simulate
