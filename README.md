@@ -107,3 +107,42 @@ Successfully created the conditions for the selfish herd behaviour to evolutiona
 None
 ### Plan for future
 Will find more theories to try to recreate the conditions.
+
+## Final Report
+
+### Project Description
+
+This project models predator-prey dynamics in a closed, toroidal (wrapping) ecosystem to study how the **selfishHerdChance** trait evolves under predation pressure. Written in Go with Raylib for rendering, the simulation successfully recreates conditions for William Hamilton's "Selfish Herd Theory" to emerge.
+
+Prey agents roam the map and evade pursuing predators. During evasion, their inherited `selfishHerdChance` trait (ranging from -1.0 to +1.0) dictates whether they steer toward nearby prey (using them as cover) or away from them (sacrificial). Predators follow a chase-and-rest cycle. The ecosystem operates across multiple generations: whenever the prey population is halved by predators, the survivors reproduce with genetic mutations, and the next generation begins.
+
+Across experiments, the population's average trait converges to around `0.1` (with an average deviation of `0.07`), supporting the hypothesis that a slight propensity to use conspecifics as cover is evolutionary favorable under these conditions.
+
+### Usage
+
+You can run the simulation visually or headlessly, and export the tracking data as HTML:
+
+**Basic Visual Run:**
+Run the simulation with an interactive Raylib window:
+```bash
+go run ./main
+```
+
+**Run Until a Specific Generation:**
+Run visually until generation `N` completes, then pause simulation updates (keeping the window open for viewing):
+```bash
+go run ./main -gen 50
+```
+
+**Export Results:**
+Run visually and export the final trait evolution graph and settings to an HTML file when finished:
+```bash
+go run ./main -export ./results.html
+```
+
+**Headless Multiple Runs (Experiment Mode):**
+Run `N` headless experiments with evenly distributed starting trait averages (scaling from +1.0 to -1.0) for `M` generations, exporting the comparative results:
+```bash
+go run ./main -multi 6 -gen 200 -export ./results.html
+```
+*(E.g., `-multi 6` runs experiments starting at 1.0, 0.6, 0.2, -0.2, -0.6, and -1.0).*
